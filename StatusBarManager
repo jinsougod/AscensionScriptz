@@ -1,0 +1,35 @@
+-- // StatusBarManager.lua | Script Type: ModuleScript | Location: ReplicatedStorage.Packages.Knit.Modules
+
+-- Simple manager for a UI status bar (health, mana, energy, etc.)
+local StatusBarManager = {}
+StatusBarManager.__index = StatusBarManager
+
+-- config: { container=Frame, fill=Frame, text=TextLabel, maxValue=number, value=number, tweenTime=number }
+function StatusBarManager.new(config)
+    local self = setmetatable({}, StatusBarManager)
+    self.container = config.container
+    self.fill      = config.fill
+    self.text      = config.text
+    self.maxValue  = config.maxValue or 0
+    self.value     = config.value or 0
+    self.tweenTime = config.tweenTime or 0.2
+
+    -- initialize UI
+    self:Update(self.value)
+    return self
+end
+
+function StatusBarManager:Update(newValue)
+    self.value = newValue
+    -- compute fill scale
+    local pct = (self.maxValue > 0) and (newValue / self.maxValue) or 0
+    -- Tween the fill's Size.X scale
+    local goal = { Size = UDim2.new(pct, 0, self.fill.Size.Y.Scale, self.fill.Size.Y.Offset) }
+    game:GetService("TweenService"):Create(self.fill, TweenInfo.new(self.tweenTime), goal):Play()
+    -- update text
+    if self.text then
+        self.text.Text = string.format("%d / %d", newValue, self.maxValue)
+    end
+end
+
+return StatusBarManager
