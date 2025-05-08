@@ -1,0 +1,14 @@
+-- // Main.server.lua | Script Type: Script | Location: ServerScriptService
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit              = require(ReplicatedStorage.Packages.Knit)
+
+-- register all services living in the Knit package
+local serviceFolder = ReplicatedStorage.Packages.Knit.Services
+Knit.AddServices(serviceFolder)
+
+Knit.Start():andThen(function()
+	print("✅ Knit server started successfully")
+end):catch(function(err)
+	warn("❌ Knit server failed to start:", err)
+end)
