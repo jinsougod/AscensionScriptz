@@ -1,0 +1,48 @@
+-- // DialogueData.lua | Script Type: ModuleScript | Location: ServerScriptService/Modules
+
+return {
+	QuestGiverNPC = {
+		start = {
+			text = "Doin' adlay? Can you bash those dogs for me?",
+			options = {
+				{ text = "Yea easy cuz.", next = "accept" },
+				{ text = "Shut up gronk.", next = "decline" },
+			}
+		},
+		accept = {
+			text = "Cheers ma budda.",
+			options = {}
+		},
+		decline = {
+			text = "I'll bash you ya dog.",
+			options = {}
+		},
+		waiting = {
+			text = "Have you bashed them yet?",
+			options = {}
+		},
+		completed = {
+			text = "You did it cuz!",
+			options = {}
+		}
+	},
+
+	-- You can easily add more NPCs here, like:
+	-- BlacksmithNPC = {
+	--     start = {
+	--         text = "Need your gear fixed, traveler?",
+	--         options = {
+	--             { text = "Yes, please!", next = "repair" },
+	--             { text = "No thanks.", next = "decline" },
+	--         }
+	--     },
+	--     repair = {
+	--         text = "All set! Your sword shines like new.",
+	--         options = {}
+	--     },
+	--     decline = {
+	--         text = "Alright, come back if you change your mind.",
+	--         options = {}
+	--     }
+	-- }
+}
