@@ -1,0 +1,89 @@
+-- // DialogueController.lua | Location: ReplicatedStorage.Packages.Knit.Controllers
+
+local Knit             = require(game:GetService("ReplicatedStorage").Packages.Knit)
+local Players          = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local player        = Players.LocalPlayer
+local playerGui     = player:WaitForChild("PlayerGui")
+local dialogueGui   = playerGui:WaitForChild("DialogueGui")
+local dialogueFrame = dialogueGui:WaitForChild("DialogueFrame")
+local npcNameLabel  = dialogueFrame:WaitForChild("NPCNameLabel")
+local dialogueTextLabel  = dialogueFrame:WaitForChild("DialogueTextLabel")
+local responseContainer  = dialogueFrame:WaitForChild("ResponseContainer")
+
+local responseButtons = {
+	responseContainer:WaitForChild("ResponseButton1"),
+	responseContainer:WaitForChild("ResponseButton2"),
+	responseContainer:WaitForChild("ResponseButton3"),
+}
+
+local buttonConnections = {}
+
+local DialogueController = Knit.CreateController { Name = "DialogueController" }
+
+local function clearOptions()
+	for _, conn in pairs(buttonConnections) do
+		if conn.Connected then conn:Disconnect() end
+	end
+	buttonConnections = {}
+	for _, btn in ipairs(responseButtons) do
+		btn.Visible = false
+		btn.Text    = ""
+	end
+end
+
+function DialogueController:KnitStart()
+	local DialogueService = Knit.GetService("DialogueService")
+
+	-- hide on respawn
+	player.CharacterAdded:Connect(function()
+		dialogueGui.Enabled   = false
+		dialogueFrame.Visible = false
+		clearOptions()
+	end)
+
+	DialogueService.StartDialogue:Connect(function(npcId, nodeKey, text, options)
+		print("[DialogueController] Showing dialogue for NPC:", npcId)
+		dialogueGui.Enabled   = true
+		dialogueFrame.Visible = true
+		npcNameLabel.Text     = npcId
+		dialogueTextLabel.Text = text
+
+		clearOptions()
+
+		if #options > 0 then
+			for i, option in ipairs(options) do
+				local btn = responseButtons[i]
+				if btn then
+					btn.Text    = option.text
+					btn.Visible = true
+					local conn = btn.MouseButton1Click:Connect(function()
+						print("[DialogueController] Option selected:", option.text)
+						DialogueService:SelectOption(npcId, nodeKey, i)
+					end)
+					table.insert(buttonConnections, conn)
+				end
+			end
+		else
+			-- auto‑hide if no options
+			task.delay(3, function()
+				if dialogueFrame.Visible then
+					print("[DialogueController] Auto-hiding dialogue")
+					dialogueFrame.Visible = false
+					dialogueGui.Enabled   = false
+					clearOptions()
+				end
+			end)
+		end
+	end)
+
+	DialogueService.EndDialogue:Connect(function(npcId)
+		print("[DialogueController] Dialogue closed for NPC:", npcId)
+		dialogueFrame.Visible = false
+		dialogueGui.Enabled   = false
+		clearOptions()
+	end)
+end
+
+return DialogueController
