@@ -1,0 +1,177 @@
+-- // CharacterCreationController.lua | Location: ReplicatedStorage.Packages.Knit.Controllers
+
+local Knit            = require(game:GetService("ReplicatedStorage").Packages.Knit)
+local Players         = game:GetService("Players")
+local RunService      = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local UpdateCharacterAppearance = ReplicatedStorage.Remotes.UpdateCharacterAppearance
+local HairFolder               = ReplicatedStorage:WaitForChild("HairAssets")
+
+local player    = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local CharacterCreationController = Knit.CreateController { Name = "CharacterCreationController" }
+
+-- hair accessory keys must match folder names under HairAssets
+local HAIR_STYLES = { "Short", "Long", "Braided", "Ponytail", "Bald", "Curly" }
+
+function CharacterCreationController:KnitStart()
+	local StatService = Knit.GetService("StatService")
+	local gui = playerGui:WaitForChild("CharacterCreationGui", 5)
+	if not gui then warn("[CharacterCreation] GUI missing") return end
+
+	-- UI refs
+	local nameInput      = gui.nameFrame.nameInput
+	local previewPanel   = gui.previewPanel
+	local avatarViewport = previewPanel.characterPreview.avatarViewport
+	local hairPanel      = gui.hairPanel
+
+	-- skin tone buttons
+	local skinButtons = {
+		Light  = previewPanel.skinToneLight,
+		Medium = previewPanel.skinToneMedium,
+		Tan    = previewPanel.skinToneTan,
+		Dark   = previewPanel.skinToneDark,
+	}
+
+	-- hair option buttons
+	local hairButtons = {}
+	for _, style in ipairs(HAIR_STYLES) do
+		hairButtons[style] = hairPanel:FindFirstChild(style:lower() .. "Option")
+	end
+
+	-- initial state
+	local data = {
+		name      = player.Name,
+		skinTone  = Color3.fromRGB(193,154,107),
+		hairStyle = "Short"
+	}
+
+	-- create a blank description once
+	local cleanDesc = Instance.new("HumanoidDescription")
+
+	-- helper: clear viewport and create new clone from a desc
+	local function rebuildClone(desc)
+		-- remove old
+		for _,c in ipairs(avatarViewport:GetChildren()) do
+			if c:IsA("Model") or c:IsA("Camera") then c:Destroy() end
+		end
+
+		-- always use R15 for clean rig
+		local clone = Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
+		clone.Parent = avatarViewport
+		clone:PivotTo(CFrame.new(0,1,0))
+
+		-- anchor parts
+		for _, part in ipairs(clone:GetDescendants()) do
+			if part:IsA("BasePart") then part.Anchored = true end
+		end
+
+		-- lighting
+		local root = clone:FindFirstChild("HumanoidRootPart") or clone.PrimaryPart
+		if root then
+			local light = Instance.new("PointLight", root)
+			light.Range = 20
+			light.Brightness = 2
+		end
+
+		-- camera
+		local cam = Instance.new("Camera", avatarViewport)
+		avatarViewport.CurrentCamera = cam
+		if root then
+			cam.CFrame = CFrame.new(root.Position + Vector3.new(0,3,5), root.Position + Vector3.new(0,2,0))
+		else
+			cam.CFrame = CFrame.new(Vector3.new(0,3,5), Vector3.new(0,2,0))
+		end
+		cam.FieldOfView = 50
+
+		return clone
+	end
+
+	-- update preview based on data
+	local function updateAppearance()
+		nameInput.Text = data.name
+
+		-- start from clean description
+		local desc = cleanDesc:Clone()
+		-- apply skin tone
+		local c = data.skinTone
+		desc.HeadColor, desc.TorsoColor,
+		desc.LeftArmColor, desc.RightArmColor,
+		desc.LeftLegColor, desc.RightLegColor =
+			c, c, c, c, c, c
+
+		-- rebuild model
+		local clone = rebuildClone(desc)
+
+		-- attach hair model with manual weld
+		local template = HairFolder:FindFirstChild(data.hairStyle)
+		if clone and template then
+			local accessory = template:Clone()
+			accessory.Parent = clone
+
+			-- find a part to weld (Handle or first BasePart)
+			local part = accessory:FindFirstChild("Handle") or accessory:FindFirstChildWhichIsA("BasePart")
+			local head = clone:FindFirstChild("Head")
+			if part and head then
+				part.Anchored = false
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = part
+				weld.Part1 = head
+				weld.Parent = part
+				part.CFrame = head.CFrame * CFrame.new(0,0.1,0)
+			end
+		end
+
+		UpdateCharacterAppearance:FireServer("UpdateAll", data)
+	end
+
+	-- hookups: name
+	nameInput.FocusLost:Connect(function(enter)
+		if enter then
+			data.name = nameInput.Text
+			updateAppearance()
+		end
+	end)
+
+	-- hookups: skin tone
+	for tone, btn in pairs(skinButtons) do
+		if btn then
+			btn.MouseButton1Click:Connect(function()
+				local cols = {
+					Light  = Color3.fromRGB(236,215,195),
+					Medium = Color3.fromRGB(193,154,107),
+					Tan    = Color3.fromRGB(139,90,43),
+					Dark   = Color3.fromRGB(92,59,39),
+				}
+				data.skinTone = cols[tone]
+				updateAppearance()
+			end)
+		end
+	end
+
+	-- hookups: hair
+	for style, btn in pairs(hairButtons) do
+		if btn then
+			btn.MouseButton1Click:Connect(function()
+				data.hairStyle = style
+				updateAppearance()
+			end)
+		end
+	end
+
+	-- navigation
+	gui.backButton.MouseButton1Click:Connect(function()
+		gui.Enabled = false
+	end)
+	gui.nextButton.MouseButton1Click:Connect(function()
+		StatService.SubmitAllocatedStats:Fire({ Strength=5, Agility=2, Vitality=3, Intelligence=1 })
+		gui.Enabled = false
+	end)
+
+	gui.Enabled = true
+	updateAppearance()
+end
+
+return CharacterCreationController
