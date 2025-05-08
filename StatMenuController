@@ -1,0 +1,148 @@
+-- // StatMenuController.lua | Script Type: Knit Controller | Location: ReplicatedStorage.Packages.Knit.Controllers
+
+local Knit             = require(game:GetService("ReplicatedStorage").Packages.Knit)
+local Players          = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local StatMenuController = Knit.CreateController { Name = "StatMenuController" }
+
+local player    = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local screenGui = playerGui:WaitForChild("StatMenuGui")
+local statFrame = screenGui:WaitForChild("StatFrame")
+
+-- set up button container inside StatFrame
+local buttonContainer = statFrame:FindFirstChild("ButtonContainer") or Instance.new("Frame")
+buttonContainer.Name               = "ButtonContainer"
+buttonContainer.Size               = UDim2.new(1, 0, 1, -72)
+buttonContainer.Position           = UDim2.new(0, 0, 0, 72)
+buttonContainer.BackgroundTransparency = 1
+buttonContainer.Parent             = statFrame
+
+if not buttonContainer:FindFirstChildOfClass("UIPadding") then
+	local padding = Instance.new("UIPadding", buttonContainer)
+	padding.PaddingTop    = UDim.new(0, 10)
+	padding.PaddingBottom = UDim.new(0, 10)
+	padding.PaddingLeft   = UDim.new(0, 10)
+	padding.PaddingRight  = UDim.new(0, 10)
+end
+
+if not buttonContainer:FindFirstChildOfClass("UIGridLayout") then
+	local grid = Instance.new("UIGridLayout", buttonContainer)
+	grid.CellSize       = UDim2.new(0.45, 0, 0.15, 0)
+	grid.CellPadding    = UDim2.new(0.05, 0, 0.05, 0)
+	grid.FillDirection  = Enum.FillDirection.Horizontal
+	grid.StartCorner    = Enum.StartCorner.TopLeft
+end
+
+-- stat data
+local stats = { Strength = 0, Agility = 0, Vitality = 0, Intelligence = 0 }
+local pointsRemaining, menuUnlocked, currentLevel, currentExp, currentExpNeeded =
+	0, false, 1, 0, 100
+
+-- helper to create the top labels
+local function ensureTopLabel(name, yOffset)
+	local label = statFrame:FindFirstChild(name) or Instance.new("TextLabel", statFrame)
+	label.Name               = name
+	label.Size               = UDim2.new(1, 0, 0, 24)
+	label.Position           = UDim2.new(0, 0, 0, yOffset)
+	label.BackgroundTransparency = 1
+	label.Font               = Enum.Font.GothamBold
+	label.TextScaled         = true
+	label.TextStrokeTransparency = 0.5
+	label.TextColor3         = Color3.new(1, 1, 1)
+	return label
+end
+
+local levelLabel  = ensureTopLabel("LevelLabel", 0)
+local expLabel    = ensureTopLabel("ExpLabel", 24)
+local pointsLabel = ensureTopLabel("PointsLabel", 48)
+
+local function updateTopLabels()
+	levelLabel.Text  = "Level: " .. currentLevel
+	expLabel.Text    = string.format("EXP: %d / %d", currentExp, currentExpNeeded)
+	pointsLabel.Text = "Points: " .. pointsRemaining
+end
+
+local function createStatButton(statName, StatService)
+	local btn = Instance.new("TextButton", buttonContainer)
+	btn.Name            = statName .. "Button"
+	btn.Size            = UDim2.new(0, 120, 0, 40)
+	btn.Text            = statName .. ": " .. stats[statName]
+	btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	btn.TextColor3      = Color3.fromRGB(255, 255, 255)
+	btn.TextScaled      = true
+	btn.Font            = Enum.Font.GothamBold
+	btn.BorderSizePixel = 0
+
+	local corner = Instance.new("UICorner", btn)
+	corner.CornerRadius = UDim.new(0, 8)
+
+	local stroke = Instance.new("UIStroke", btn)
+	stroke.Color        = Color3.fromRGB(255, 255, 255)
+	stroke.Thickness    = 1
+	stroke.Transparency = 0.5
+
+	btn.MouseButton1Click:Connect(function()
+		if pointsRemaining > 0 then
+			stats[statName] += 1
+			pointsRemaining -= 1
+			btn.Text = statName .. ": " .. stats[statName]
+			updateTopLabels()
+			print(("[StatMenu] Allocated 1 point to %s: new value = %d, pointsRemaining = %d")
+				:format(statName, stats[statName], pointsRemaining))
+
+			if pointsRemaining == 0 then
+				print("[StatMenu] All points allocated, sending to server")
+				StatService.SubmitAllocatedStats:Fire(stats)
+				for _, child in ipairs(buttonContainer:GetChildren()) do
+					if child:IsA("TextButton") then
+						child.Active = false
+						child.AutoButtonColor = false
+					end
+				end
+				statFrame.Visible = false
+			end
+		else
+			print("[StatMenu] No points remaining")
+		end
+	end)
+end
+
+function StatMenuController:KnitStart()
+	local StatService = Knit.GetService("StatService")
+
+	StatService.OpenStatMenu:Connect(function(grantedPoints, level, exp, expNeeded, serverAllocatedStats)
+		currentLevel       = tonumber(level) or 1
+		currentExp         = tonumber(exp) or 0
+		currentExpNeeded   = tonumber(expNeeded) or 100
+		pointsRemaining    = tonumber(grantedPoints) or 0
+		stats              = serverAllocatedStats or { Strength = 0, Agility = 0, Vitality = 0, Intelligence = 0 }
+		menuUnlocked       = true
+
+		-- clear old buttons
+		for _, child in ipairs(buttonContainer:GetChildren()) do
+			if child:IsA("TextButton") then
+				child:Destroy()
+			end
+		end
+
+		updateTopLabels()
+		createStatButton("Strength",    StatService)
+		createStatButton("Agility",     StatService)
+		createStatButton("Vitality",    StatService)
+		createStatButton("Intelligence",StatService)
+
+		statFrame.Visible = true
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed or not menuUnlocked then return end
+		if input.UserInputType == Enum.UserInputType.Keyboard
+			and input.KeyCode == Enum.KeyCode.M then
+			statFrame.Visible = not statFrame.Visible
+		end
+	end)
+end
+
+return StatMenuController
