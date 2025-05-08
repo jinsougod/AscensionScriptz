@@ -1,0 +1,22 @@
+-- // AttackController.lua | Location: ReplicatedStorage.Packages.Knit.Controllers
+
+local Knit = require(game:GetService("ReplicatedStorage").Packages.Knit)
+local ContextActionService = game:GetService("ContextActionService")
+
+local AttackBinder = Knit.CreateController { Name = "AttackBinder" }
+
+function AttackBinder:KnitStart()
+	local CombatService = Knit.GetService("CombatService")
+
+	local function onAttack(actionName, inputState)
+		if inputState == Enum.UserInputState.Begin then
+			CombatService:Attack() -- ✅ now it's a Knit controller call (no InvokeServer)
+			print("✅ [AttackBinder] CombatService:Attack() fired at", tick())
+		end
+	end
+
+	ContextActionService:BindAction("Attack", onAttack, false, Enum.UserInputType.MouseButton1)
+	print("AttackBinder: initialized")
+end
+
+return AttackBinder
