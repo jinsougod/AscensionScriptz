@@ -1,0 +1,49 @@
+-- // UIController.lua | Script Type: Knit Controller | Location: ReplicatedStorage.Packages.Knit.Controllers
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit              = require(ReplicatedStorage.Packages.Knit)
+local Players           = game:GetService("Players")
+
+local player    = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local uiGui     = playerGui:WaitForChild("StatMenuGui")
+
+local questLogFrame = uiGui:WaitForChild("QuestLogFrame")
+local questLog      = questLogFrame:WaitForChild("TextLabel")
+
+local UIController = Knit.CreateController { Name = "UIController" }
+
+local awakenedShown = false
+
+local function setupSystemAwakenedEffect()
+	-- [unchanged code]
+end
+
+function UIController:KnitStart()
+	print("✅ UIController: Knit started, setting up listeners")
+
+	local QuestService = Knit.GetService("QuestService")
+
+	QuestService.QuestUpdate:Connect(function(progress)
+		print("UIController: QuestUpdateEvent received:", progress)
+
+		if awakenedShown then
+			questLogFrame.Visible = true
+		end
+
+		questLog.Text = string.format("Defeat 5 weak monsters (%d/5)", progress)
+
+		if progress == 5 then
+			questLog.Text                 = "Quest Complete!"
+			questLogFrame.BackgroundColor3 = Color3.new(0, 1, 0)
+		end
+
+		if progress == 5 and not awakenedShown then
+			awakenedShown = true
+			print("UIController: SYSTEM AWAKENED shown")
+			setupSystemAwakenedEffect()
+		end
+	end)
+end
+
+return UIController
