@@ -1,0 +1,76 @@
+-- // NPCInteractionController.lua | Script Type: Knit Controller | Location: ReplicatedStorage.Packages.Knit.Controllers
+
+local ReplicatedStorage         = game:GetService("ReplicatedStorage")
+local Knit                      = require(ReplicatedStorage.Packages.Knit)
+local Players                   = game:GetService("Players")
+local ProximityPromptService    = game:GetService("ProximityPromptService")
+
+local player            = Players.LocalPlayer
+local TalkToNPCRemote   = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TalkToNPC")
+
+local NPCInteractionController = Knit.CreateController { Name = "NPCInteractionController" }
+
+local ui  -- will hold reference to InteractionPromptGui
+
+local function setupUI()
+	local playerGui = player:WaitForChild("PlayerGui")
+	ui = playerGui:WaitForChild("InteractionPromptGui", 5)
+	if ui and ui:FindFirstChild("PromptFrame") then
+		ui.PromptFrame.Visible = false
+		print("[NPCInteractionController] ✅ UI ready and PromptFrame hidden")
+	else
+		warn("[NPCInteractionController] ⚠ Could not find InteractionPromptGui or PromptFrame")
+	end
+end
+
+function NPCInteractionController:KnitStart()
+	print("[NPCInteractionController] ✅ KnitStart running")
+
+	setupUI()
+
+	player.CharacterAdded:Connect(function()
+		print("[NPCInteractionController] 🔄 Player respawn detected, resetting UI references")
+		setupUI()
+	end)
+
+	-- Debug any prompt shown
+	ProximityPromptService.PromptShown:Connect(function(prompt)
+		print("[DEBUG] PromptShown →", prompt.ObjectText, prompt.Name)
+	end)
+
+	-- Show our custom UI when a custom‑style prompt appears
+	ProximityPromptService.PromptShown:Connect(function(prompt)
+		if prompt.Style == Enum.ProximityPromptStyle.Custom and ui and ui:FindFirstChild("PromptFrame") then
+			ui.PromptFrame.Visible = true
+			ui.PromptFrame.TextLabel.Text = string.format("[F] Talk to %s", prompt.ObjectText or "NPC")
+			print("[NPCInteractionController] Showing prompt UI →", ui.PromptFrame.TextLabel.Text)
+		end
+	end)
+
+	-- Hide the UI when the prompt hides
+	ProximityPromptService.PromptHidden:Connect(function(prompt)
+		if prompt.Style == Enum.ProximityPromptStyle.Custom and ui and ui:FindFirstChild("PromptFrame") then
+			ui.PromptFrame.Visible = false
+			print("[NPCInteractionController] Hiding prompt UI")
+		end
+	end)
+
+	-- Fire the remote when the player triggers the prompt
+	ProximityPromptService.PromptTriggered:Connect(function(prompt, triggeredPlayer)
+		if triggeredPlayer == player then
+			local npcModel = prompt.Parent:FindFirstAncestorOfClass("Model")
+			if npcModel then
+				print("[NPCInteractionController] Starting conversation with NPC model:", npcModel.Name)
+				TalkToNPCRemote:FireServer(npcModel)
+			else
+				warn("[NPCInteractionController] ❌ Could not find NPC model for prompt parent:", prompt.Parent.Name)
+			end
+
+			if ui and ui:FindFirstChild("PromptFrame") then
+				ui.PromptFrame.Visible = false
+			end
+		end
+	end)
+end
+
+return NPCInteractionController
