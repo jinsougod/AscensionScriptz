@@ -1,0 +1,149 @@
+-- // CinematicCameraController.lua | Location: ReplicatedStorage.Packages.Knit.Controllers
+
+local Knit         = require(game:GetService("ReplicatedStorage").Packages.Knit)
+local Players      = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- rename internal to match file
+local CinematicCameraController = Knit.CreateController { Name = "CinematicCameraController" }
+
+-- stored state
+local originalCameraType, originalCameraSubject
+local savedWalkSpeed, savedJumpPower
+local isFrozen    = false
+local isResetting = false
+local currentNpcId = nil
+
+local zoomOffset = Vector3.new(0, 2, 4)
+local tweenTime  = 0.5
+
+local function tweenCameraTo(targetCFrame, onComplete)
+	print("[CC] → tweenCameraTo start")
+	local tween = TweenService:Create(camera, TweenInfo.new(tweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		CFrame = targetCFrame
+	})
+	tween.Completed:Connect(function()
+		print("[CC] ← tweenCameraTo completed")
+		if onComplete then onComplete() end
+	end)
+	tween:Play()
+end
+
+local function freezePlayer(shouldFreeze)
+	print((" [CC] freezePlayer(%s)"):format(tostring(shouldFreeze)))
+	local char = player.Character or player.CharacterAdded:Wait()
+	local hum  = char:FindFirstChildOfClass("Humanoid")
+	if not hum then 
+		print(" [CC] ! no humanoid to freeze")
+		return 
+	end
+
+	if shouldFreeze and not isFrozen then
+		savedWalkSpeed = hum.WalkSpeed
+		savedJumpPower = hum.JumpPower
+		hum.WalkSpeed  = 0
+		hum.JumpPower  = 0
+		isFrozen = true
+		print((" [CC] → speeds saved %d / %d"):format(savedWalkSpeed, savedJumpPower))
+	end
+end
+
+local function unfreezePlayer()
+	print(" [CC] unfreezePlayer()")
+	local char = player.Character or player.CharacterAdded:Wait()
+	local hum  = char:FindFirstChildOfClass("Humanoid")
+	if not hum then 
+		print(" [CC] ! no humanoid to unfreeze")
+		return 
+	end
+
+	if isFrozen then
+		hum.WalkSpeed  = savedWalkSpeed or hum.WalkSpeed
+		hum.JumpPower  = savedJumpPower or hum.JumpPower
+		isFrozen = false
+		print((" [CC] ← speeds restored %d / %d"):format(hum.WalkSpeed, hum.JumpPower))
+	end
+end
+
+function CinematicCameraController:KnitStart()
+	print("[CC] KnitStart running")
+	local DialogueService = Knit.GetService("DialogueService")
+
+	DialogueService.StartDialogue:Connect(function(npcId)
+		print("[CC] ** StartDialogue →", npcId)
+		isResetting = false
+
+		if npcId == currentNpcId then
+			print(" [CC] Same NPC, skipping camera tween")
+			freezePlayer(true)
+			return
+		end
+
+		freezePlayer(true)
+		originalCameraType    = camera.CameraType
+		originalCameraSubject = camera.CameraSubject
+		print((" [CC] saved camera type %s, subject %s"):format(tostring(originalCameraType), tostring(originalCameraSubject)))
+		camera.CameraType     = Enum.CameraType.Scriptable
+		currentNpcId = npcId
+
+		local npcModel = workspace:FindFirstChild(npcId)
+		if not npcModel or not npcModel.PrimaryPart then
+			print(" [CC] ! missing NPC model or PrimaryPart")
+			return
+		end
+
+		local cf   = npcModel.PrimaryPart.CFrame
+		local pos  = cf.Position + cf.LookVector * zoomOffset.Z + Vector3.new(0, zoomOffset.Y, 0)
+		local look = cf.Position + Vector3.new(0, 2, 0)
+		print(" [CC] tweening to NPC at", pos)
+		tweenCameraTo(CFrame.lookAt(pos, look))
+	end)
+
+	DialogueService.EndDialogue:Connect(function()
+		print("[CC] ** EndDialogue handler running")
+		if isResetting then
+			print(" [CC] -- already resetting, skip")
+			return
+		end
+		isResetting = true
+		currentNpcId = nil
+
+		local char = player.Character or player.CharacterAdded:Wait()
+		local root = char:FindFirstChild("HumanoidRootPart")
+		local hum  = char:FindFirstChildOfClass("Humanoid")
+
+		if root and hum then
+			local backPos  = root.Position + Vector3.new(0, 2, 6)
+			local backLook = root.Position + Vector3.new(0, 2, 0)
+			print(" [CC] tweening back to player at", backPos)
+			tweenCameraTo(CFrame.lookAt(backPos, backLook), function()
+				print(" [CC] restoring camera subject/type")
+				camera.CameraSubject = hum
+				camera.CameraType    = Enum.CameraType.Custom
+				unfreezePlayer()
+				isResetting = false
+				print("[CC] restore complete")
+				camera.FieldOfView = 70
+				camera.CFrame = CFrame.new(root.Position + Vector3.new(0, 2, 10), root.Position)
+			end)
+		else
+			print(" [CC] fallback restore (missing root/humanoid)")
+			if hum then
+				camera.CameraSubject = hum
+				camera.CameraType    = Enum.CameraType.Custom
+				camera.FieldOfView = 70
+				if root then
+					camera.CFrame = CFrame.new(root.Position + Vector3.new(0, 2, 10), root.Position)
+				end
+			end
+			unfreezePlayer()
+			isResetting = false
+			print("[CC] fallback restore complete")
+		end
+	end)
+end
+
+return CinematicCameraController
