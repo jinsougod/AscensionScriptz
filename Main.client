@@ -1,0 +1,35 @@
+-- // Main.client.lua | Script Type: LocalScript | Location: StarterPlayerScripts
+
+local ReplicatedStorage   = game:GetService("ReplicatedStorage")
+local Players             = game:GetService("Players")
+local UserInputService    = game:GetService("UserInputService")
+local Knit                = require(ReplicatedStorage.Packages.Knit)
+
+print("[Main] before AddControllers")
+-- register the entire Controllers folder—don't call AddControllers on individual scripts
+Knit.AddControllers(ReplicatedStorage.Packages.Knit.Controllers)
+print("[Main] after AddControllers")
+
+Knit.Start():andThen(function()
+	print("✅ [Main] Knit client started")
+
+	-- when dialogue ends, restore camera & input
+	local DialogueService = Knit.GetService("DialogueService")
+	DialogueService.EndDialogue:Connect(function(npcId)
+		print("[Main] EndDialogue event received for", npcId)
+		local lp = Players.LocalPlayer
+		if lp and lp.Character then
+			local hum = lp.Character:FindFirstChildOfClass("Humanoid")
+			if hum then
+				local cam = workspace.CurrentCamera
+				cam.CameraSubject = hum
+				cam.CameraType    = Enum.CameraType.Custom
+			end
+		end
+
+		print("[Main] re‑enabling input")
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	end)
+end):catch(function(err)
+	warn("[Main] Knit.Start failed:", err)
+end)
