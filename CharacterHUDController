@@ -1,0 +1,60 @@
+-- // CharacterHUDController.lua | Location: ReplicatedStorage.Packages.Knit.Controllers
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit              = require(ReplicatedStorage.Packages.Knit)
+local Players           = game:GetService("Players")
+-- require the shared module from within the Knit package
+local StatusBarManager  = require(ReplicatedStorage.Packages.Knit.Modules.StatusBarManager)
+
+local CharacterHUDController = Knit.CreateController { Name = "CharacterHUDController" }
+
+function CharacterHUDController:KnitStart()
+	-- Grab player and HUD GUI
+	local player = Players.LocalPlayer
+	local gui    = player:WaitForChild("PlayerGui"):WaitForChild("StatMenuGui")
+
+	-- Wait for the character's humanoid
+	local char     = player.Character or player.CharacterAdded:Wait()
+	local humanoid = char:WaitForChild("Humanoid")
+
+	-- Setup Health bar
+	local healthBar = StatusBarManager.new({
+		container = gui:WaitForChild("HealthBar"),
+		fill      = gui.HealthBar:WaitForChild("Fill"),
+		text      = gui.HealthBar:WaitForChild("HealthText"),
+		maxValue  = humanoid.MaxHealth,
+		value     = humanoid.Health,
+		tweenTime = 0.2,
+	})
+	humanoid.HealthChanged:Connect(function(newHealth)
+		healthBar:Update(newHealth)
+	end)
+
+	-- Setup Energy bar
+	local energyBar = StatusBarManager.new({
+		container = gui:WaitForChild("EnergyBar"),
+		fill      = gui.EnergyBar:WaitForChild("Fill"),
+		text      = gui.EnergyBar:WaitForChild("EnergyText"),
+		maxValue  = humanoid:GetAttribute("MaxEnergy") or 100,
+		value     = humanoid:GetAttribute("Energy") or 0,
+		tweenTime = 0.2,
+	})
+	humanoid:GetAttributeChangedSignal("Energy"):Connect(function()
+		energyBar:Update(humanoid:GetAttribute("Energy") or 0)
+	end)
+
+	-- Setup Mana bar
+	local manaBar = StatusBarManager.new({
+		container = gui:WaitForChild("ManaBar"),
+		fill      = gui.ManaBar:WaitForChild("Fill"),
+		text      = gui.ManaBar:WaitForChild("ManaText"),
+		maxValue  = humanoid:GetAttribute("MaxMana") or 50,
+		value     = humanoid:GetAttribute("Mana") or 0,
+		tweenTime = 0.2,
+	})
+	humanoid:GetAttributeChangedSignal("Mana"):Connect(function()
+		manaBar:Update(humanoid:GetAttribute("Mana") or 0)
+	end)
+end
+
+return CharacterHUDController
